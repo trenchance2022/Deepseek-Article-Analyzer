@@ -26,6 +26,9 @@ venv/
 ENV/
 env/
 
+# 根目录的虚拟环境（应该使用apps/.venv）
+/.venv/
+
 # Environment variables
 .env
 
@@ -45,3 +48,11 @@ Thumbs.db
 
 # Cursor
 .cursorignore
+
+# Frontend
+playground/node_modules/
+playground/dist/
+playground/.vite/
+playground/.pnpm-store/
+playground/.DS_Store
+playground/*.log
