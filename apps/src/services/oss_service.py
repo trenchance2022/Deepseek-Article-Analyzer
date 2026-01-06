@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 import oss2
-from src.core.config import settings
+from config import settings
 
 
 class OSSService:

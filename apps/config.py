@@ -20,16 +20,16 @@ class Settings(BaseSettings):
     OSS_REGION: str = ""  # 可选，如 oss-cn-hangzhou
 
     # 应用配置
-    APP_NAME: str = "DeepSeek API"
+    APP_NAME: str = "论文批量读取系统"
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = False
 
     # 服务器配置
-    HOST: str = "0.0.0.0"
+    HOST: str = "127.0.0.1"
     PORT: int = 8000
 
     # CORS 配置
-    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+    CORS_ORIGINS: list[str] = ["http://localhost:10617", "http://127.0.0.1:10617"]
 
     class Config:
         env_file = ".env"

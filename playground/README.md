@@ -1,4 +1,4 @@
-# DeepSeek API Playground
+# 论文批量读取系统 - 前端
 
 React 19 + TypeScript + Vite + Tailwind CSS 4.x 前端项目。
 

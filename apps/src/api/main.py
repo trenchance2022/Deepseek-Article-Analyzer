@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from src.core.config import settings
+from config import settings
 from src.api.v1 import papers
 
 app = FastAPI(
@@ -28,7 +28,7 @@ app.include_router(papers.router, prefix="/api/v1")
 async def root():
     """根路径"""
     return {
-        "message": "DeepSeek API Server",
+        "message": "论文批量读取系统 API",
         "version": settings.APP_VERSION,
     }
 

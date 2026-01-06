@@ -1,8 +1,8 @@
-"""DeepSeek API 客户端"""
+"""DeepSeek API 客户端封装"""
 
 import os
 from openai import OpenAI
-from .config import settings
+from config import settings
 
 
 class DeepSeekClient:

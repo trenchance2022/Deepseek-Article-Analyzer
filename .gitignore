@@ -31,6 +31,10 @@ env/
 
 # Environment variables
 .env
+.env.*
+!.env.example
+.env.local
+.env.*.local
 
 # IDE
 .vscode/
@@ -56,3 +60,12 @@ playground/.vite/
 playground/.pnpm-store/
 playground/.DS_Store
 playground/*.log
+playground/.env
+playground/.env.local
+playground/.env.*.local
+
+# 项目特定
+results/
+*.db
+*.sqlite
+*.sqlite3

@@ -5,10 +5,10 @@ const Home = () => {
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
-            DeepSeek API Playground
+            论文批量读取系统
           </h1>
           <p className="text-lg text-gray-600 dark:text-gray-400">
-            欢迎使用 DeepSeek API 管理平台
+            基于MinerU和DeepSeek的PDF论文批量处理系统
           </p>
         </div>
       </div>
