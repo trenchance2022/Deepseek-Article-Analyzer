@@ -21,7 +21,7 @@ function useApi<T = unknown>({
   url,
   config,
   immediate = false,
-}: UseApiOptions<T>): UseApiResult<T> {
+}: UseApiOptions): UseApiResult<T> {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<Error | null>(null);
@@ -33,7 +33,7 @@ function useApi<T = unknown>({
       const response = await apiClient.get<T>(url, config);
       setData(response.data);
     } catch (err) {
-      const error = err instanceof Error ? err : new Error('Unknown error');
+      const error = err instanceof globalThis.Error ? err : new globalThis.Error(String(err ?? 'Unknown error'));
       setError(error);
     } finally {
       setLoading(false);

@@ -90,8 +90,7 @@ const FileUploader = ({
       setResults(uploadResults);
       onUploadSuccess?.(uploadResults);
     } catch (err) {
-      const error =
-        err instanceof Error ? err : new Error('上传失败');
+      const error = err instanceof globalThis.Error ? err : new globalThis.Error(String(err ?? '上传失败'));
       setError(error.message);
       onUploadError?.(error);
     } finally {
