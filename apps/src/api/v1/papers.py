@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, status
 from typing import List
-from src.services.oss_service import get_oss_service
+from src.core.clients import get_oss_client
 from pydantic import BaseModel
 
 
@@ -25,7 +25,7 @@ class DeleteResponse(BaseModel):
     message: str
 
 
-@router.post("/upload", response_model=UploadResponse)
+@router.post("", response_model=UploadResponse)
 async def upload_file(file: UploadFile = File(...)):
     """
     上传PDF文件到OSS
@@ -55,8 +55,8 @@ async def upload_file(file: UploadFile = File(...)):
             )
 
         # 上传到OSS
-        oss_service = get_oss_service()
-        result = oss_service.upload_file(file_content, file.filename)
+        oss_client = get_oss_client()
+        result = oss_client.upload_file(file_content, file.filename)
 
         return UploadResponse(
             oss_key=result["oss_key"],
@@ -76,7 +76,7 @@ async def upload_file(file: UploadFile = File(...)):
         )
 
 
-@router.post("/upload/batch", response_model=List[UploadResponse])
+@router.post("/batch", response_model=List[UploadResponse])
 async def upload_files(files: List[UploadFile] = File(...)):
     """
     批量上传PDF文件到OSS
@@ -96,7 +96,7 @@ async def upload_files(files: List[UploadFile] = File(...)):
     errors = []
 
     try:
-        oss_service = get_oss_service()
+        oss_client = get_oss_client()
 
         for file in files:
             try:
@@ -115,7 +115,7 @@ async def upload_files(files: List[UploadFile] = File(...)):
                     continue
 
                 # 上传到OSS
-                result = oss_service.upload_file(file_content, file.filename)
+                result = oss_client.upload_file(file_content, file.filename)
                 results.append(
                     UploadResponse(
                         oss_key=result["oss_key"],
@@ -148,7 +148,7 @@ async def upload_files(files: List[UploadFile] = File(...)):
         )
 
 
-@router.delete("/delete/{oss_key:path}", response_model=DeleteResponse)
+@router.delete("/{oss_key:path}", response_model=DeleteResponse)
 async def delete_file(oss_key: str):
     """
     删除OSS中的文件
@@ -165,16 +165,16 @@ async def delete_file(oss_key: str):
         )
 
     try:
-        oss_service = get_oss_service()
+        oss_client = get_oss_client()
 
         # 检查文件是否存在
-        if not oss_service.file_exists(oss_key):
+        if not oss_client.file_exists(oss_key):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在"
             )
 
         # 删除文件
-        success = oss_service.delete_file(oss_key)
+        success = oss_client.delete_file(oss_key)
 
         if success:
             return DeleteResponse(success=True, message="文件删除成功")

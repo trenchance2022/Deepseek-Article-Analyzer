@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     OSS_ENDPOINT: str = ""
     OSS_REGION: str = ""  # 可选，如 oss-cn-hangzhou
 
+    # MinerU 配置
+    MINERU_API_TOKEN: str = ""
+    MINERU_API_BASE_URL: str = "https://mineru.net/api/v4"
+
     # 应用配置
     APP_NAME: str = "论文批量读取系统"
     APP_VERSION: str = "0.1.0"

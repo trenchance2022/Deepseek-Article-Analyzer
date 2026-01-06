@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config import settings
-from src.api.v1 import papers
+from src.api.v1 import papers, mineru, files
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -22,6 +22,8 @@ app.add_middleware(
 
 # 注册路由
 app.include_router(papers.router, prefix="/api/v1")
+app.include_router(mineru.router, prefix="/api/v1")
+app.include_router(files.router, prefix="/api/v1")
 
 
 @app.get("/")

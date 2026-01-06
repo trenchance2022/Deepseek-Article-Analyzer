@@ -69,3 +69,6 @@ results/
 *.db
 *.sqlite
 *.sqlite3
+
+# 工作目录
+working_dir/

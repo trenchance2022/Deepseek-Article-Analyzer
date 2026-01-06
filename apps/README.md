@@ -17,6 +17,7 @@ OSS_ACCESS_KEY_ID=your_access_key_id
 OSS_ACCESS_KEY_SECRET=your_access_key_secret
 OSS_BUCKET_NAME=your_bucket_name
 OSS_ENDPOINT=oss-cn-hangzhou.aliyuncs.com
+MINERU_API_TOKEN=your_mineru_api_token
 ```
 
 ## 运行

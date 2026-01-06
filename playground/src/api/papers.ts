@@ -25,7 +25,7 @@ export const uploadFile = async (
   formData.append('file', file);
 
   const response = await apiClient.post<UploadResponse>(
-    '/v1/papers/upload',
+    '/v1/papers',
     formData,
     {
       headers: {
@@ -58,7 +58,7 @@ export const uploadFiles = async (
   });
 
   const response = await apiClient.post<UploadResponse[]>(
-    '/v1/papers/upload/batch',
+    '/v1/papers/batch',
     formData,
     {
       headers: {
@@ -87,7 +87,7 @@ export const uploadFiles = async (
  */
 export const deleteFile = async (ossKey: string): Promise<DeleteResponse> => {
   const response = await apiClient.delete<DeleteResponse>(
-    `/v1/papers/delete/${encodeURIComponent(ossKey)}`
+    `/v1/papers/${encodeURIComponent(ossKey)}`
   );
   return response.data;
 };

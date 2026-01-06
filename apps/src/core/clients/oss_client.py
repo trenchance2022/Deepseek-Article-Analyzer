@@ -1,5 +1,4 @@
-"""阿里云OSS服务"""
-
+"""阿里云OSS客户端"""
 import os
 import uuid
 from datetime import datetime
@@ -8,8 +7,8 @@ import oss2
 from config import settings
 
 
-class OSSService:
-    """阿里云OSS服务类"""
+class OSSClient:
+    """阿里云OSS客户端"""
 
     def __init__(self):
         """初始化OSS客户端"""
@@ -123,13 +122,14 @@ class OSSService:
             raise Exception(f"生成临时URL失败: {str(e)}")
 
 
-# 全局OSS服务实例
-_oss_service: Optional[OSSService] = None
+# 全局客户端实例
+_oss_client: Optional[OSSClient] = None
 
 
-def get_oss_service() -> OSSService:
-    """获取OSS服务实例（单例模式）"""
-    global _oss_service
-    if _oss_service is None:
-        _oss_service = OSSService()
-    return _oss_service
+def get_oss_client() -> OSSClient:
+    """获取OSS客户端实例（单例模式）"""
+    global _oss_client
+    if _oss_client is None:
+        _oss_client = OSSClient()
+    return _oss_client
+
