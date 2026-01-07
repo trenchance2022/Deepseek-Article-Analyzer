@@ -12,7 +12,6 @@ const PaperManagement = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(10);
   const [statusFilter, setStatusFilter] = useState<PaperStatus | undefined>(undefined);
-  const [searchName, setSearchName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedMarkdown, setSelectedMarkdown] = useState<string | null>(null);
@@ -54,11 +53,6 @@ const PaperManagement = () => {
     setStatusFilter(status);
     setCurrentPage(1); // 重置到第一页
   };
-
-  // 处理搜索（前端筛选）
-  const filteredPapers = searchName
-    ? papers.filter(p => p.filename.toLowerCase().includes(searchName.toLowerCase()))
-    : papers;
 
   // 开始提取
   const handleStartExtraction = useCallback(async (ossKey: string) => {
@@ -189,57 +183,35 @@ const PaperManagement = () => {
           </div>
         )}
 
-        {/* 搜索和筛选 */}
+        {/* 状态筛选 */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* 搜索框 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                姓名（文件名）
-              </label>
-              <input
-                type="text"
-                value={searchName}
-                onChange={(e) => setSearchName(e.target.value)}
-                placeholder="请输入文件名"
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-              />
-            </div>
-
-            {/* 状态筛选 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                类型（状态）
-              </label>
-              <select
-                value={statusFilter || ''}
-                onChange={(e) => handleStatusFilterChange(e.target.value as PaperStatus || undefined)}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-              >
-                <option value="">全部</option>
-                <option value="uploading">上传中</option>
-                <option value="uploaded">已上传</option>
-                <option value="parsing">解析中</option>
-                <option value="downloading">下载中</option>
-                <option value="extracted">已提取</option>
-                <option value="analyzing">分析中</option>
-                <option value="done">已完成</option>
-                <option value="error">失败</option>
-              </select>
-            </div>
-
-            {/* 操作按钮 */}
-            <div className="flex items-end">
+          <div className="flex items-center gap-4">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              状态筛选
+            </label>
+            <select
+              value={statusFilter || ''}
+              onChange={(e) => handleStatusFilterChange(e.target.value as PaperStatus || undefined)}
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+            >
+              <option value="">全部</option>
+              <option value="uploading">上传中</option>
+              <option value="uploaded">已上传</option>
+              <option value="parsing">解析中</option>
+              <option value="downloading">下载中</option>
+              <option value="extracted">已提取</option>
+              <option value="analyzing">分析中</option>
+              <option value="done">已完成</option>
+              <option value="error">失败</option>
+            </select>
+            {statusFilter && (
               <button
-                onClick={() => {
-                  setSearchName('');
-                  handleStatusFilterChange(undefined);
-                }}
-                className="px-6 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                onClick={() => handleStatusFilterChange(undefined)}
+                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
               >
-                重置
+                清除筛选
               </button>
-            </div>
+            )}
           </div>
         </div>
 
@@ -273,14 +245,14 @@ const PaperManagement = () => {
                       <Loading />
                     </td>
                   </tr>
-                ) : filteredPapers.length === 0 ? (
+                ) : papers.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                       暂无数据
                     </td>
                   </tr>
                 ) : (
-                  filteredPapers.map((paper, index) => {
+                  papers.map((paper, index) => {
                     const isProcessing = processingOssKeys.has(paper.oss_key);
                     const canExtractNow = canExtract(paper.status) && !isProcessing;
                     const canAnalyzeNow = canAnalyze(paper.status) && !isProcessing;
