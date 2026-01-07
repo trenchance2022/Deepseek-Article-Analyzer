@@ -1,6 +1,6 @@
 /** 本地存储工具 */
 
-export type PaperStatus = 'uploaded' | 'parsing' | 'downloading' | 'extracted' | 'analyzing' | 'done' | 'error';
+export type PaperStatus = 'uploading' | 'uploaded' | 'parsing' | 'downloading' | 'extracted' | 'analyzing' | 'done' | 'error';
 
 export interface PaperInfo {
   oss_key: string;
@@ -113,5 +113,35 @@ export const getAllPapers = (): PaperInfo[] => {
     const timeB = b.uploaded_at ? new Date(b.uploaded_at).getTime() : 0;
     return timeB - timeA;
   });
+};
+
+/**
+ * 获取状态统计信息
+ */
+export interface StatusStats {
+  total: number;
+  uploading: number;
+  uploaded: number;
+  parsing: number;
+  downloading: number;
+  extracted: number;
+  analyzing: number;
+  done: number;
+  error: number;
+}
+
+export const getStatusStats = (): StatusStats => {
+  const papers = loadPapers();
+  return {
+    total: papers.length,
+    uploading: papers.filter(p => p.status === 'uploading').length,
+    uploaded: papers.filter(p => p.status === 'uploaded').length,
+    parsing: papers.filter(p => p.status === 'parsing').length,
+    downloading: papers.filter(p => p.status === 'downloading').length,
+    extracted: papers.filter(p => p.status === 'extracted').length,
+    analyzing: papers.filter(p => p.status === 'analyzing').length,
+    done: papers.filter(p => p.status === 'done').length,
+    error: papers.filter(p => p.status === 'error').length,
+  };
 };
 

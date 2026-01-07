@@ -1,18 +1,38 @@
 /** 欢迎页 */
 import { useNavigate } from 'react-router-dom';
-import { getAllPapers } from '../utils/storage';
+import { getStatusStats, type StatusStats } from '../api/papersManagement';
+import { useEffect, useState } from 'react';
 
 const Welcome = () => {
   const navigate = useNavigate();
-  const papers = getAllPapers();
+  const [stats, setStats] = useState<StatusStats>({
+    total: 0,
+    uploading: 0,
+    uploaded: 0,
+    parsing: 0,
+    downloading: 0,
+    extracted: 0,
+    analyzing: 0,
+    done: 0,
+    error: 0,
+  });
 
-  const statusCounts = {
-    uploaded: papers.filter(p => p.status === 'uploaded').length,
-    parsing: papers.filter(p => p.status === 'parsing' || p.status === 'downloading').length,
-    extracted: papers.filter(p => p.status === 'extracted').length,
-    done: papers.filter(p => p.status === 'done').length,
-    error: papers.filter(p => p.status === 'error').length,
+  // 加载数据
+  const loadData = async () => {
+    try {
+      const statsData = await getStatusStats();
+      setStats(statsData);
+    } catch (err) {
+      console.error('加载数据失败:', err);
+    }
   };
+
+  useEffect(() => {
+    loadData();
+    // 定期刷新统计信息
+    const interval = setInterval(loadData, 2000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="p-8">
@@ -25,28 +45,52 @@ const Welcome = () => {
         </p>
 
         {/* 统计信息 */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-8">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
             <div className="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-2">
-              {papers.length}
+              {stats.total}
             </div>
             <div className="text-sm text-gray-600 dark:text-gray-400">总论文数</div>
           </div>
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
             <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400 mb-2">
-              {statusCounts.uploaded + statusCounts.parsing}
+              {stats.uploading}
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">处理中</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">上传中</div>
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <div className="text-3xl font-bold text-amber-600 dark:text-amber-400 mb-2">
+              {stats.uploaded}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">已上传</div>
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <div className="text-3xl font-bold text-purple-600 dark:text-purple-400 mb-2">
+              {stats.parsing + stats.downloading}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">提取中</div>
           </div>
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
             <div className="text-3xl font-bold text-green-600 dark:text-green-400 mb-2">
-              {statusCounts.extracted + statusCounts.done}
+              {stats.extracted}
             </div>
             <div className="text-sm text-gray-600 dark:text-gray-400">已提取</div>
           </div>
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <div className="text-3xl font-bold text-indigo-600 dark:text-indigo-400 mb-2">
+              {stats.analyzing}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">分析中</div>
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 mb-2">
+              {stats.done}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">已完成</div>
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
             <div className="text-3xl font-bold text-red-600 dark:text-red-400 mb-2">
-              {statusCounts.error}
+              {stats.error}
             </div>
             <div className="text-sm text-gray-600 dark:text-gray-400">失败</div>
           </div>
@@ -91,54 +135,6 @@ const Welcome = () => {
           </div>
         </div>
 
-        {/* 最近论文 */}
-        {papers.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-              最近论文
-            </h2>
-            <div className="space-y-2">
-              {papers.slice(0, 5).map((paper) => (
-                <div
-                  key={paper.oss_key}
-                  className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                      {paper.filename}
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {paper.uploaded_at
-                        ? new Date(paper.uploaded_at).toLocaleString('zh-CN')
-                        : '未知时间'}
-                    </div>
-                  </div>
-                  <span
-                    className={`ml-4 px-2 py-1 rounded text-xs font-medium ${
-                      paper.status === 'done'
-                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                        : paper.status === 'error'
-                        ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                        : paper.status === 'extracted'
-                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                        : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                    }`}
-                  >
-                    {paper.status === 'done'
-                      ? '完成'
-                      : paper.status === 'error'
-                      ? '失败'
-                      : paper.status === 'extracted'
-                      ? '已提取'
-                      : paper.status === 'uploaded'
-                      ? '已上传'
-                      : '处理中'}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

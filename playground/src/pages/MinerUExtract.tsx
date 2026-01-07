@@ -1,167 +1,130 @@
 /** MinerU 提取页 */
 import { useState, useCallback, useEffect } from 'react';
-import { deleteFile } from '../api/papers';
-import { parsePaper, getTaskStatus, type MinerUParseResponse, type MinerUTaskStatusResponse } from '../api/mineru';
-import { downloadAndExtract, getMarkdown } from '../api/files';
-import { getAllPapers, getPapersByStatus, updatePaper, deletePaper as deletePaperStorage, type PaperInfo } from '../utils/storage';
+import { getAllPapers, getPaperMarkdown, type PaperInfo } from '../api/papersManagement';
+import { startExtraction, stopExtraction } from '../api/extraction';
 import Loading from '../components/Loading';
 import Error from '../components/Error';
 
 const MinerUExtract = () => {
   const [papers, setPapers] = useState<PaperInfo[]>([]);
-  const [processingPapers, setProcessingPapers] = useState<Set<string>>(new Set());
+  const [total, setTotal] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(20); // 每页20条
+  const [loading, setLoading] = useState(false);
+  const [processingOssKeys, setProcessingOssKeys] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [selectedMarkdown, setSelectedMarkdown] = useState<string | null>(null);
   const [selectedPaperName, setSelectedPaperName] = useState<string | null>(null);
 
-  // 加载论文列表
-  const loadPapers = useCallback(() => {
-    const allPapers = getAllPapers();
-    setPapers(allPapers);
-  }, []);
+  // 加载论文列表（分页）
+  const loadPapers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const offset = (currentPage - 1) * pageSize;
+      const response = await getAllPapers({ offset, limit: pageSize });
+      setPapers(response.items);
+      setTotal(response.total);
+    } catch (err) {
+      console.error('加载论文列表失败:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentPage, pageSize]);
 
   useEffect(() => {
     loadPapers();
+    // 定期刷新论文列表
+    const interval = setInterval(loadPapers, 2000);
+    return () => clearInterval(interval);
   }, [loadPapers]);
 
-  // 恢复处理中的论文（只在组件挂载时执行一次）
-  useEffect(() => {
-    const uploadedPapers = getPapersByStatus('uploaded');
-    const parsingPapers = papers.filter(
-      p => p.status === 'parsing' || p.status === 'downloading'
-    );
+  // 处理分页
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
 
-    // 如果有上传但未处理的论文，或者有处理中断的论文，自动恢复处理
-    if (uploadedPapers.length > 0 || parsingPapers.length > 0) {
-      const papersToProcess = [...uploadedPapers, ...parsingPapers];
-      // 延迟执行，避免在 useEffect 中直接调用异步函数
-      const timer = setTimeout(() => {
-        handleStartParse(papersToProcess);
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // 只在组件挂载时执行一次
+  // 计算总页数
+  const totalPages = Math.ceil(total / pageSize);
 
-  // 开始解析
-  const handleStartParse = useCallback(async (papersToProcess?: PaperInfo[]) => {
-    const targetPapers = papersToProcess || getPapersByStatus('uploaded');
+  // 开始提取
+  const handleStartParse = useCallback(async () => {
+    const uploadedPapers = papers.filter(p => p.status === 'uploaded');
     
-    if (targetPapers.length === 0) {
+    if (uploadedPapers.length === 0) {
       setError('没有待处理的论文');
       return;
     }
 
     setError(null);
 
-    // 标记为处理中
-    targetPapers.forEach(paper => {
-      setProcessingPapers(prev => new Set(prev).add(paper.oss_key));
-      updatePaper(paper.oss_key, { status: 'parsing' });
-    });
-
-    // 逐个处理论文
-    for (const paper of targetPapers) {
+    // 逐个启动提取任务
+    for (const paper of uploadedPapers) {
       try {
-        // 1. 创建 MinerU 解析任务
-        const parseResult: MinerUParseResponse = await parsePaper({
-          url: paper.oss_url,
-          model_version: 'vlm',
-        });
-
-        const taskId = parseResult.task_id;
-        updatePaper(paper.oss_key, { 
-          task_id: taskId, 
-          status: 'parsing' 
-        });
-
-        // 2. 轮询任务状态
-        let taskStatus: MinerUTaskStatusResponse;
-        let attempts = 0;
-        const maxAttempts = 300; // 最多轮询 50 分钟
-
-        do {
-          await new Promise(resolve => setTimeout(resolve, 10000)); // 等待 10 秒
-          taskStatus = await getTaskStatus(taskId);
-          attempts++;
-
-          updatePaper(paper.oss_key, { 
-            task_id: taskId, 
-            status: taskStatus.state === 'done' ? 'extracted' : 'parsing'
-          });
-
-          if (attempts >= maxAttempts) {
-            throw new globalThis.Error('任务超时');
-          }
-        } while (taskStatus.state !== 'done' && taskStatus.state !== 'error');
-
-        if (taskStatus.state === 'error') {
-          throw new globalThis.Error(taskStatus.err_msg || '解析失败');
-        }
-
-        if (!taskStatus.full_zip_url) {
-          throw new globalThis.Error('未获取到 ZIP 文件 URL');
-        }
-
-        // 3. 更新状态为下载中
-        updatePaper(paper.oss_key, { status: 'downloading' });
-
-        // 4. 下载并解压
-        await downloadAndExtract({
-          zip_url: taskStatus.full_zip_url,
-          task_id: taskId,
-        });
-
-        // 5. 获取 Markdown 内容
-        const markdownResult = await getMarkdown(taskId);
-        
-        // 6. 更新本地存储
-        updatePaper(paper.oss_key, {
-          task_id: taskId,
-          status: 'extracted',
-          markdown_content: markdownResult.content,
-          extracted_at: new Date().toISOString(),
-        });
-
-        // 7. 删除 OSS 文件
-        try {
-          await deleteFile(paper.oss_key);
-          deletePaperStorage(paper.oss_key);
-        } catch (err) {
-          console.error('删除 OSS 文件失败:', err);
-        }
-
-        // 8. 更新状态
-        setProcessingPapers(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(paper.oss_key);
-          return newSet;
-        });
-
-        // 刷新列表
-        loadPapers();
-
+        setProcessingOssKeys(prev => new Set(prev).add(paper.oss_key));
+        await startExtraction(paper.oss_key);
+        // 后端会自动处理提取流程，前端只需要启动任务
       } catch (err) {
-        const errorMessage = err instanceof globalThis.Error ? err.message : String(err ?? '处理失败');
-        updatePaper(paper.oss_key, { 
-          status: 'error',
-          error: errorMessage
-        });
-        setProcessingPapers(prev => {
+        const errorMessage = err instanceof globalThis.Error ? err.message : String(err ?? '启动提取失败');
+        setError(errorMessage);
+        setProcessingOssKeys(prev => {
           const newSet = new Set(prev);
           newSet.delete(paper.oss_key);
           return newSet;
         });
-        loadPapers();
       }
+    }
+
+    // 刷新列表（会定期刷新，这里只是立即刷新一次）
+    loadPapers();
+  }, [papers, loadPapers]);
+
+  // 定期检查并清理已完成的处理任务
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setProcessingOssKeys(prev => {
+        const newSet = new Set(prev);
+        // 移除状态不是 parsing 或 downloading 的论文
+        papers.forEach(paper => {
+          if (newSet.has(paper.oss_key) && 
+              paper.status !== 'parsing' && 
+              paper.status !== 'downloading') {
+            newSet.delete(paper.oss_key);
+          }
+        });
+        return newSet;
+      });
+    }, 3000); // 每3秒清理一次
+    
+    return () => clearInterval(interval);
+  }, [papers]);
+
+  // 停止提取
+  const handleStopParse = useCallback(async (ossKey: string) => {
+    try {
+      await stopExtraction(ossKey);
+      setProcessingOssKeys(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(ossKey);
+        return newSet;
+      });
+      loadPapers();
+    } catch (err) {
+      const errorMessage = err instanceof globalThis.Error ? err.message : String(err ?? '停止提取失败');
+      setError(errorMessage);
     }
   }, [loadPapers]);
 
   // 查看 Markdown
-  const handleViewMarkdown = useCallback((paper: PaperInfo) => {
-    if (paper.markdown_content) {
-      setSelectedMarkdown(paper.markdown_content);
-      setSelectedPaperName(paper.filename);
+  const handleViewMarkdown = useCallback(async (paper: PaperInfo) => {
+    if (paper.markdown_path) {
+      try {
+        const result = await getPaperMarkdown(paper.oss_key);
+        setSelectedMarkdown(result.content);
+        setSelectedPaperName(paper.filename);
+      } catch (err) {
+        const errorMessage = err instanceof globalThis.Error ? err.message : String(err ?? '读取 Markdown 失败');
+        setError(errorMessage);
+      }
     }
   }, []);
 
@@ -171,9 +134,13 @@ const MinerUExtract = () => {
     setSelectedPaperName(null);
   }, []);
 
-  const uploadedPapers = getPapersByStatus('uploaded');
-  const extractedPapers = getPapersByStatus('extracted');
-  const errorPapers = getPapersByStatus('error');
+  const uploadedPapers = papers.filter(p => p.status === 'uploaded');
+  // 处理中的论文：状态为 parsing 或 downloading 的论文
+  const processingPapers = papers.filter(p => 
+    p.status === 'parsing' || p.status === 'downloading'
+  );
+  const extractedPapers = papers.filter(p => p.status === 'extracted');
+  const errorPapers = papers.filter(p => p.status === 'error');
 
   return (
     <div className="p-8">
@@ -184,8 +151,8 @@ const MinerUExtract = () => {
           </h1>
           {uploadedPapers.length > 0 && (
             <button
-              onClick={() => handleStartParse()}
-              disabled={processingPapers.size > 0}
+              onClick={handleStartParse}
+              disabled={processingOssKeys.size > 0}
               className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               开始提取 ({uploadedPapers.length})
@@ -231,34 +198,41 @@ const MinerUExtract = () => {
         )}
 
         {/* 处理中的论文 */}
-        {papers.filter(p => processingPapers.has(p.oss_key) || p.status === 'parsing' || p.status === 'downloading').length > 0 && (
+        {processingPapers.length > 0 && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
               处理中
             </h2>
             <div className="space-y-2">
-              {papers
-                .filter(p => processingPapers.has(p.oss_key) || p.status === 'parsing' || p.status === 'downloading')
-                .map((paper) => (
-                  <div
-                    key={paper.oss_key}
-                    className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                        {paper.filename}
-                      </h3>
-                      {paper.task_id && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          Task: {paper.task_id.slice(0, 8)}...
-                        </p>
-                      )}
-                    </div>
-                    <div className="ml-4">
-                      <Loading />
-                    </div>
+              {processingPapers.map((paper) => (
+                <div
+                  key={paper.oss_key}
+                  className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg"
+                >
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                      {paper.filename}
+                    </h3>
+                    {paper.task_id && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 break-all">
+                        Task ID: {paper.task_id}
+                      </p>
+                    )}
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      状态: {paper.status === 'parsing' ? '解析中' : paper.status === 'downloading' ? '下载中' : '处理中'}
+                    </p>
                   </div>
-                ))}
+                  <div className="ml-4 flex items-center space-x-2">
+                    <Loading />
+                    <button
+                      onClick={() => handleStopParse(paper.oss_key)}
+                      className="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+                    >
+                      停止
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -289,7 +263,7 @@ const MinerUExtract = () => {
                     <span className="px-2 py-1 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded text-xs font-medium">
                       已提取
                     </span>
-                    {paper.markdown_content && (
+                    {paper.markdown_path && (
                       <button
                         onClick={() => handleViewMarkdown(paper)}
                         className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm"
@@ -336,11 +310,39 @@ const MinerUExtract = () => {
         )}
 
         {/* 空状态 */}
-        {papers.length === 0 && (
+        {!loading && papers.length === 0 && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-12 text-center">
             <p className="text-gray-500 dark:text-gray-400">
               还没有论文，请先前往"论文上传"页面上传论文
             </p>
+          </div>
+        )}
+
+        {/* 分页控件 */}
+        {totalPages > 1 && (
+          <div className="mt-6 flex items-center justify-between bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4">
+            <div className="text-sm text-gray-700 dark:text-gray-300">
+              共 {total} 条
+            </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                上一页
+              </button>
+              <span className="text-sm text-gray-700 dark:text-gray-300">
+                第 {currentPage} / {totalPages} 页
+              </span>
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage >= totalPages}
+                className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                下一页
+              </button>
+            </div>
           </div>
         )}
 
@@ -377,4 +379,3 @@ const MinerUExtract = () => {
 };
 
 export default MinerUExtract;
-

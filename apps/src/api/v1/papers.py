@@ -1,196 +1,236 @@
-"""论文相关API接口"""
+"""论文资源管理API接口（RESTful）"""
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, status
-from typing import List
-from src.core.clients import get_oss_client
+from fastapi import APIRouter, HTTPException, status, Query
+from typing import List, Optional
 from pydantic import BaseModel
-
+from datetime import datetime
+from urllib.parse import unquote
+from src.services.storage_service import (
+    load_papers,
+    save_papers,
+    get_paper_by_oss_key,
+    update_paper,
+    delete_paper,
+    WORKING_DIR,
+)
+from pathlib import Path
 
 router = APIRouter(prefix="/papers", tags=["papers"])
 
+# 论文状态类型
+PaperStatus = str  # 'uploading' | 'uploaded' | 'parsing' | 'downloading' | 'extracted' | 'analyzing' | 'done' | 'error'
 
-class UploadResponse(BaseModel):
-    """上传响应模型"""
+
+class PaperInfo(BaseModel):
+    """论文信息模型"""
 
     oss_key: str
     oss_url: str
     filename: str
-    size: int
+    size: Optional[int] = None
+    task_id: Optional[str] = None
+    status: PaperStatus
+    markdown_path: Optional[str] = None  # markdown 文件路径（相对于 working_dir）
+    error: Optional[str] = None
+    uploaded_at: Optional[str] = None
+    extracted_at: Optional[str] = None
 
 
-class DeleteResponse(BaseModel):
-    """删除响应模型"""
+class PaperCreate(BaseModel):
+    """创建论文请求模型"""
 
-    success: bool
-    message: str
+    oss_key: str
+    oss_url: str
+    filename: str
+    size: Optional[int] = None
 
 
-@router.post("", response_model=UploadResponse)
-async def upload_file(file: UploadFile = File(...)):
+class PaperUpdate(BaseModel):
+    """更新论文请求模型"""
+
+    status: Optional[PaperStatus] = None
+    task_id: Optional[str] = None
+    markdown_path: Optional[str] = None
+    error: Optional[str] = None
+    extracted_at: Optional[str] = None
+
+
+class StatusStats(BaseModel):
+    """状态统计模型"""
+
+    total: int
+    uploading: int
+    uploaded: int
+    parsing: int
+    downloading: int
+    extracted: int
+    analyzing: int
+    done: int
+    error: int
+
+
+class PaperListResponse(BaseModel):
+    """论文列表分页响应模型"""
+
+    items: List[PaperInfo]
+    total: int
+    offset: int
+    limit: int
+
+
+@router.get("", response_model=PaperListResponse)
+async def get_papers(
+    status: Optional[PaperStatus] = Query(None, description="按状态筛选"),
+    offset: Optional[int] = Query(0, ge=0, description="偏移量，从0开始"),
+    limit: Optional[int] = Query(10, ge=1, le=100, description="每页数量，最大100"),
+):
     """
-    上传PDF文件到OSS
+    获取论文列表（分页）
+
+    GET /api/v1/papers
+    GET /api/v1/papers?status=uploaded&offset=0&limit=10
 
     Args:
-        file: 上传的文件
+        status: 可选的状态筛选
+        offset: 偏移量，从0开始
+        limit: 每页数量，默认10，最大100
 
     Returns:
-        UploadResponse: 包含OSS key和URL等信息
+        PaperListResponse: 分页响应，包含论文列表、总数、偏移量和每页数量
     """
-    # 验证文件类型
-    if not file.filename.endswith(".pdf"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="只支持PDF文件"
-        )
+    papers = load_papers()
 
-    try:
-        # 读取文件内容
-        file_content = await file.read()
+    # 按状态筛选
+    if status:
+        papers = [p for p in papers if p.get("status") == status]
 
-        # 验证文件大小（例如：最大100MB）
-        max_size = 100 * 1024 * 1024  # 100MB
-        if len(file_content) > max_size:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"文件大小超过限制（最大{max_size / 1024 / 1024}MB）",
-            )
+    # 按上传时间倒序排序
+    papers.sort(
+        key=lambda x: x.get("uploaded_at", ""),
+        reverse=True,
+    )
 
-        # 上传到OSS
-        oss_client = get_oss_client()
-        result = oss_client.upload_file(file_content, file.filename)
+    total = len(papers)
 
-        return UploadResponse(
-            oss_key=result["oss_key"],
-            oss_url=result["oss_url"],
-            filename=result["filename"],
-            size=result["size"],
-        )
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"OSS配置错误: {str(e)}",
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"上传失败: {str(e)}",
-        )
+    # 处理分页参数（确保有默认值）
+    offset_val = offset if offset is not None else 0
+    limit_val = limit if limit is not None else 10
+
+    # 分页切片
+    end = offset_val + limit_val
+    paginated_papers = papers[offset_val:end]
+
+    return PaperListResponse(
+        items=[PaperInfo(**paper) for paper in paginated_papers],
+        total=total,
+        offset=offset_val,
+        limit=limit_val,
+    )
 
 
-@router.post("/batch", response_model=List[UploadResponse])
-async def upload_files(files: List[UploadFile] = File(...)):
+@router.get("/stats", response_model=StatusStats)
+async def get_status_stats():
     """
-    批量上传PDF文件到OSS
+    获取状态统计信息
+
+    GET /api/v1/papers/stats
+
+    Returns:
+        StatusStats: 状态统计
+    """
+    papers = load_papers()
+
+    stats = {
+        "total": len(papers),
+        "uploading": 0,
+        "uploaded": 0,
+        "parsing": 0,
+        "downloading": 0,
+        "extracted": 0,
+        "analyzing": 0,
+        "done": 0,
+        "error": 0,
+    }
+
+    for paper in papers:
+        paper_status = paper.get("status", "uploaded")
+        if paper_status in stats:
+            stats[paper_status] += 1
+
+    return StatusStats(**stats)
+
+
+@router.post("", response_model=PaperInfo)
+async def create_paper(paper_create: PaperCreate):
+    """
+    创建论文记录
+
+    POST /api/v1/papers
 
     Args:
-        files: 上传的文件列表
+        paper_create: 论文创建信息
 
     Returns:
-        List[UploadResponse]: 上传结果列表
+        PaperInfo: 创建的论文信息
     """
-    if not files:
+    # 检查是否已存在
+    existing = get_paper_by_oss_key(paper_create.oss_key)
+    if existing:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="请至少上传一个文件"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="论文已存在"
         )
 
-    results = []
-    errors = []
+    # 创建新论文记录
+    paper_data = {
+        "oss_key": paper_create.oss_key,
+        "oss_url": paper_create.oss_url,
+        "filename": paper_create.filename,
+        "size": paper_create.size,
+        "status": "uploaded",
+        "uploaded_at": datetime.now().isoformat(),
+    }
 
-    try:
-        oss_client = get_oss_client()
+    papers = load_papers()
+    papers.append(paper_data)
+    save_papers(papers)
 
-        for file in files:
-            try:
-                # 验证文件类型
-                if not file.filename.endswith(".pdf"):
-                    errors.append(f"{file.filename}: 只支持PDF文件")
-                    continue
-
-                # 读取文件内容
-                file_content = await file.read()
-
-                # 验证文件大小
-                max_size = 100 * 1024 * 1024  # 100MB
-                if len(file_content) > max_size:
-                    errors.append(f"{file.filename}: 文件大小超过限制")
-                    continue
-
-                # 上传到OSS
-                result = oss_client.upload_file(file_content, file.filename)
-                results.append(
-                    UploadResponse(
-                        oss_key=result["oss_key"],
-                        oss_url=result["oss_url"],
-                        filename=result["filename"],
-                        size=result["size"],
-                    )
-                )
-            except Exception as e:
-                errors.append(f"{file.filename}: {str(e)}")
-
-        if not results and errors:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"所有文件上传失败: {'; '.join(errors)}",
-            )
-
-        return results
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"OSS配置错误: {str(e)}",
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"批量上传失败: {str(e)}",
-        )
+    return PaperInfo(**paper_data)
 
 
-@router.delete("/{oss_key:path}", response_model=DeleteResponse)
-async def delete_file(oss_key: str):
+@router.post("/batch", response_model=List[PaperInfo])
+async def create_papers_batch(papers_create: List[PaperCreate]):
     """
-    删除OSS中的文件
+    批量创建论文记录
+
+    POST /api/v1/papers/batch
 
     Args:
-        oss_key: OSS对象键（路径）
+        papers_create: 论文创建信息列表
 
     Returns:
-        DeleteResponse: 删除结果
+        List[PaperInfo]: 创建的论文信息列表
     """
-    if not oss_key:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="oss_key不能为空"
-        )
+    papers = load_papers()
+    papers_dict = {p.get("oss_key"): p for p in papers}
+    created_papers = []
 
-    try:
-        oss_client = get_oss_client()
+    for paper_create in papers_create:
+        # 如果已存在，跳过
+        if paper_create.oss_key in papers_dict:
+            created_papers.append(PaperInfo(**papers_dict[paper_create.oss_key]))
+            continue
 
-        # 检查文件是否存在
-        if not oss_client.file_exists(oss_key):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在"
-            )
+        # 创建新论文记录
+        paper_data = {
+            "oss_key": paper_create.oss_key,
+            "oss_url": paper_create.oss_url,
+            "filename": paper_create.filename,
+            "size": paper_create.size,
+            "status": "uploaded",
+            "uploaded_at": datetime.now().isoformat(),
+        }
+        papers.append(paper_data)
+        created_papers.append(PaperInfo(**paper_data))
 
-        # 删除文件
-        success = oss_client.delete_file(oss_key)
-
-        if success:
-            return DeleteResponse(success=True, message="文件删除成功")
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="文件删除失败"
-            )
-    except HTTPException:
-        raise
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"OSS配置错误: {str(e)}",
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"删除失败: {str(e)}",
-        )
+    save_papers(papers)
+    return created_papers

@@ -1,4 +1,5 @@
-/** 论文相关API */
+/** 文件操作 API（OSS 文件上传、删除） */
+
 import apiClient from './client';
 import type { AxiosProgressEvent } from 'axios';
 
@@ -16,6 +17,7 @@ export interface DeleteResponse {
 
 /**
  * 上传单个PDF文件
+ * POST /api/v1/files
  */
 export const uploadFile = async (
   file: File,
@@ -25,7 +27,7 @@ export const uploadFile = async (
   formData.append('file', file);
 
   const response = await apiClient.post<UploadResponse>(
-    '/v1/papers',
+    '/v1/files',
     formData,
     {
       headers: {
@@ -47,6 +49,7 @@ export const uploadFile = async (
 
 /**
  * 批量上传PDF文件
+ * POST /api/v1/files/batch
  */
 export const uploadFiles = async (
   files: File[],
@@ -58,7 +61,7 @@ export const uploadFiles = async (
   });
 
   const response = await apiClient.post<UploadResponse[]>(
-    '/v1/papers/batch',
+    '/v1/files/batch',
     formData,
     {
       headers: {
@@ -84,11 +87,11 @@ export const uploadFiles = async (
 
 /**
  * 删除OSS中的文件
+ * DELETE /api/v1/files/{oss_key}
  */
 export const deleteFile = async (ossKey: string): Promise<DeleteResponse> => {
   const response = await apiClient.delete<DeleteResponse>(
-    `/v1/papers/${encodeURIComponent(ossKey)}`
+    `/v1/files/${encodeURIComponent(ossKey)}`
   );
   return response.data;
 };
-

@@ -31,15 +31,7 @@ export const downloadAndExtract = async (
   return response.data;
 };
 
-/**
- * 获取 Markdown 内容
- */
-export const getMarkdown = async (
-  taskId: string
-): Promise<MarkdownResponse> => {
-  const response = await apiClient.get<MarkdownResponse>(
-    `/v1/files/markdown/${taskId}`
-  );
-  return response.data;
-};
+// 注意：已移除通过 task_id 获取 markdown 的接口
+// 统一使用 papersManagement.getPaperMarkdown(ossKey) 接口
+// 因为 oss_key 是唯一标识，一个 oss_key 对应一个论文
 

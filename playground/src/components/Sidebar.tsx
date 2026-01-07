@@ -10,6 +10,7 @@ const Sidebar = ({ className = '' }: SidebarProps) => {
 
   const menuItems = [
     { path: '/', label: '欢迎页', icon: '🏠' },
+    { path: '/papers', label: '论文管理', icon: '📚' },
     { path: '/upload', label: '论文上传', icon: '📤' },
     { path: '/mineru', label: 'MinerU提取', icon: '📄' },
     { path: '/deepseek', label: 'DeepSeek分析', icon: '🤖' },

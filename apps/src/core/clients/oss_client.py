@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Optional
 import oss2
 from config import settings
+from src.core.logger import logger
 
 
 class OSSClient:
@@ -50,6 +51,7 @@ class OSSClient:
         oss_key = f"{folder}/{datetime.now().strftime('%Y%m%d')}/{unique_filename}"
 
         try:
+            logger.debug(f"上传文件到 OSS: {filename}, oss_key: {oss_key}, 大小: {len(file_content)} bytes")
             # 上传文件
             result = self.bucket.put_object(oss_key, file_content)
 
@@ -62,6 +64,7 @@ class OSSClient:
                 base_url = f"https://{self.bucket_name}.{settings.OSS_ENDPOINT}"
 
             oss_url = f"{base_url}/{oss_key}"
+            logger.info(f"文件上传成功: {filename}, oss_key: {oss_key}")
 
             return {
                 "oss_key": oss_key,
@@ -71,6 +74,7 @@ class OSSClient:
                 "etag": result.etag,
             }
         except Exception as e:
+            logger.error(f"OSS上传失败: {filename}, oss_key: {oss_key}, 错误: {e}", exc_info=True)
             raise Exception(f"OSS上传失败: {str(e)}")
 
     def delete_file(self, oss_key: str) -> bool:
@@ -84,9 +88,12 @@ class OSSClient:
             bool: 删除是否成功
         """
         try:
+            logger.debug(f"删除 OSS 文件: {oss_key}")
             self.bucket.delete_object(oss_key)
+            logger.info(f"OSS 文件删除成功: {oss_key}")
             return True
         except Exception as e:
+            logger.error(f"OSS删除失败: {oss_key}, 错误: {e}", exc_info=True)
             raise Exception(f"OSS删除失败: {str(e)}")
 
     def file_exists(self, oss_key: str) -> bool:

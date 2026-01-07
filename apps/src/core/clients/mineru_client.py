@@ -3,6 +3,7 @@
 import httpx
 from typing import Optional, Dict, List, Any
 from config import settings
+from src.core.logger import logger
 
 
 class MinerUClient:
@@ -64,16 +65,23 @@ class MinerUClient:
             payload["page_ranges"] = page_ranges
 
         try:
+            logger.debug(f"创建 MinerU 任务: url={url}, model_version={model_version}")
             with httpx.Client(timeout=30.0) as client:
                 response = client.post(endpoint, headers=self.headers, json=payload)
                 response.raise_for_status()
                 result = response.json()
 
                 if result.get("code") != 0:
-                    raise Exception(f"MinerU API 错误: {result.get('msg', '未知错误')}")
+                    error_msg = result.get("msg", "未知错误")
+                    logger.error(f"MinerU API 错误: {error_msg}")
+                    raise Exception(f"MinerU API 错误: {error_msg}")
 
-                return result.get("data", {})
+                task_data = result.get("data", {})
+                task_id = task_data.get("task_id", "")
+                logger.info(f"MinerU 任务创建成功: task_id={task_id}, url={url}")
+                return task_data
         except httpx.HTTPError as e:
+            logger.error(f"MinerU API 请求失败: {e}", exc_info=True)
             raise Exception(f"MinerU API 请求失败: {str(e)}")
 
     def get_task_status(self, task_id: str) -> Dict[str, Any]:
@@ -133,16 +141,25 @@ class MinerUClient:
         }
 
         try:
+            logger.debug(f"批量创建 MinerU 任务: 文件数={len(files)}")
             with httpx.Client(timeout=30.0) as client:
                 response = client.post(endpoint, headers=self.headers, json=payload)
                 response.raise_for_status()
                 result = response.json()
 
                 if result.get("code") != 0:
-                    raise Exception(f"MinerU API 错误: {result.get('msg', '未知错误')}")
+                    error_msg = result.get("msg", "未知错误")
+                    logger.error(f"MinerU API 错误: {error_msg}")
+                    raise Exception(f"MinerU API 错误: {error_msg}")
 
-                return result.get("data", {})
+                batch_data = result.get("data", {})
+                batch_id = batch_data.get("batch_id", "")
+                logger.info(
+                    f"MinerU 批量任务创建成功: batch_id={batch_id}, 文件数={len(files)}"
+                )
+                return batch_data
         except httpx.HTTPError as e:
+            logger.error(f"MinerU API 请求失败: {e}", exc_info=True)
             raise Exception(f"MinerU API 请求失败: {str(e)}")
 
     def get_batch_results(self, batch_id: str) -> Dict[str, Any]:
@@ -158,16 +175,22 @@ class MinerUClient:
         endpoint = f"{self.base_url}/extract-results/batch/{batch_id}"
 
         try:
+            logger.debug(f"查询 MinerU 批量任务结果: batch_id={batch_id}")
             with httpx.Client(timeout=30.0) as client:
                 response = client.get(endpoint, headers=self.headers)
                 response.raise_for_status()
                 result = response.json()
 
                 if result.get("code") != 0:
-                    raise Exception(f"MinerU API 错误: {result.get('msg', '未知错误')}")
+                    error_msg = result.get("msg", "未知错误")
+                    logger.error(f"MinerU API 错误: batch_id={batch_id}, {error_msg}")
+                    raise Exception(f"MinerU API 错误: {error_msg}")
 
                 return result.get("data", {})
         except httpx.HTTPError as e:
+            logger.error(
+                f"MinerU API 请求失败: batch_id={batch_id}, {e}", exc_info=True
+            )
             raise Exception(f"MinerU API 请求失败: {str(e)}")
 
     def wait_for_task_completion(

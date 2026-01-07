@@ -89,6 +89,10 @@ const FileUploader = ({
 
       setResults(uploadResults);
       onUploadSuccess?.(uploadResults);
+      
+      // 上传成功后，清除已上传的文件列表
+      setFiles([]);
+      setProgress({});
     } catch (err) {
       const error = err instanceof globalThis.Error ? err : new globalThis.Error(String(err ?? '上传失败'));
       setError(error.message);
@@ -253,8 +257,11 @@ const FileUploader = ({
                 <p className="text-sm font-medium text-gray-900 dark:text-white">
                   {result.filename}
                 </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 break-all">
                   OSS Key: {result.oss_key}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 break-all">
+                  OSS URL: {result.oss_url}
                 </p>
                 <a
                   href={result.oss_url}

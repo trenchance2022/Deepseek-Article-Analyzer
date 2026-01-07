@@ -57,17 +57,28 @@ def load_papers() -> List[Dict[str, Any]]:
 def get_paper_by_oss_key(oss_key: str) -> Optional[Dict[str, Any]]:
     """
     根据 oss_key 获取论文信息
+    支持正斜杠和反斜杠的灵活匹配
 
     Args:
-        oss_key: OSS 对象键
+        oss_key: OSS 对象键（可能包含正斜杠或反斜杠）
 
     Returns:
         Optional[Dict]: 论文信息，如果不存在则返回 None
     """
     papers = load_papers()
+
+    # 标准化输入的 oss_key（统一使用正斜杠）
+    oss_key_normalized = oss_key.replace("\\", "/")
+
     for paper in papers:
-        if paper.get("oss_key") == oss_key:
+        paper_oss_key = paper.get("oss_key", "")
+        # 标准化存储的 oss_key（统一使用正斜杠）
+        paper_oss_key_normalized = paper_oss_key.replace("\\", "/")
+
+        # 同时尝试精确匹配和标准化匹配
+        if paper_oss_key == oss_key or paper_oss_key_normalized == oss_key_normalized:
             return paper
+
     return None
 
 
