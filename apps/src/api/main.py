@@ -6,7 +6,7 @@ from src.core.logger import logger
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config import settings
-from src.api.v1 import papers, mineru, files, extraction
+from src.api.v1 import papers, mineru, files, extraction, analyze
 from src.services.storage_service import load_papers
 from src.services.mineru_extraction_service import process_extraction
 import asyncio
@@ -67,9 +67,13 @@ app.add_middleware(
 # 注册路由
 # 文件操作
 app.include_router(files.router, prefix="/api/v1")
-# 论文资源管理（包含提取操作作为子资源）
+# 论文资源管理（包含提取和分析操作作为子资源）
+# 注意：路由注册顺序很重要，更具体的路由（analyze）应该先注册
 app.include_router(papers.router, prefix="/api/v1")
-app.include_router(extraction.router, prefix="/api/v1/papers")
+app.include_router(analyze.router, prefix="/api/v1/papers")  # 分析路由（更具体）
+app.include_router(
+    extraction.router, prefix="/api/v1/papers"
+)  # 提取路由（包含通用路由）
 # MinerU 服务
 app.include_router(mineru.router, prefix="/api/v1")
 

@@ -1,12 +1,14 @@
 /** 论文管理页面 */
 import { useState, useEffect, useCallback } from 'react';
 import { getAllPapers, deletePaper, type PaperInfo, type PaperStatus } from '../api/papersManagement';
-import { startExtraction, stopExtraction } from '../api/extraction';
+import { startExtraction, stopExtraction, startAnalysis } from '../api/extraction';
 import { getPaperMarkdown } from '../api/papersManagement';
+import { useNavigate } from 'react-router-dom';
 import Error from '../components/Error';
 import Loading from '../components/Loading';
 
 const PaperManagement = () => {
+  const navigate = useNavigate();
   const [papers, setPapers] = useState<PaperInfo[]>([]);
   const [total, setTotal] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -87,11 +89,27 @@ const PaperManagement = () => {
     }
   }, [loadPapers]);
 
-  // 开始分析（占位）
-  const handleStartAnalysis = useCallback(async (_ossKey: string) => {
-    // TODO: 实现 DeepSeek 分析
-    setError('DeepSeek 分析功能尚未实现');
-  }, []);
+  // 开始分析
+  const handleStartAnalysis = useCallback(async (ossKey: string) => {
+    try {
+      setProcessingOssKeys(prev => new Set(prev).add(ossKey));
+      await startAnalysis(ossKey);
+      await loadPapers(); // 刷新列表
+    } catch (err) {
+      const errorMessage = err instanceof globalThis.Error ? err.message : String(err ?? '启动分析失败');
+      setError(errorMessage);
+      setProcessingOssKeys(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(ossKey);
+        return newSet;
+      });
+    }
+  }, [loadPapers]);
+
+  // 查看分析结果
+  const handleViewAnalysis = useCallback((ossKey: string) => {
+    navigate(`/analysis/${encodeURIComponent(ossKey)}`);
+  }, [navigate]);
 
   // 删除论文
   const handleDelete = useCallback(async (ossKey: string) => {
@@ -309,7 +327,15 @@ const PaperManagement = () => {
                                 onClick={() => handleViewMarkdown(paper)}
                                 className="px-3 py-1 bg-purple-500 text-white rounded hover:bg-purple-600 transition-colors text-xs"
                               >
-                                查看
+                                查看提取结果
+                              </button>
+                            )}
+                            {paper.status === 'done' && (paper.analysis_results_path || (paper as any).analysis_results) && (
+                              <button
+                                onClick={() => handleViewAnalysis(paper.oss_key)}
+                                className="px-3 py-1 bg-teal-500 text-white rounded hover:bg-teal-600 transition-colors text-xs"
+                              >
+                                查看分析结果
                               </button>
                             )}
                             {canDelete(paper.status) && (

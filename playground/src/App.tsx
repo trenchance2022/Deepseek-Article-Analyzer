@@ -6,6 +6,7 @@ import PaperManagement from './pages/PaperManagement';
 import PaperUpload from './pages/PaperUpload';
 import MinerUExtract from './pages/MinerUExtract';
 import DeepSeekAnalysis from './pages/DeepSeekAnalysis';
+import AnalysisResults from './pages/AnalysisResults';
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
           <Route path="upload" element={<PaperUpload />} />
           <Route path="mineru" element={<MinerUExtract />} />
           <Route path="deepseek" element={<DeepSeekAnalysis />} />
+          <Route path="analysis/:ossKey" element={<AnalysisResults />} />
         </Route>
       </Routes>
     </BrowserRouter>

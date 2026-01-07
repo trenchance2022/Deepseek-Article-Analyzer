@@ -1,7 +1,6 @@
 """论文提取操作API（作为论文资源的子资源）"""
 
 from fastapi import APIRouter, HTTPException, status, BackgroundTasks
-from pydantic import BaseModel
 from urllib.parse import unquote
 from pathlib import Path
 from src.services.mineru_extraction_service import (
@@ -13,7 +12,11 @@ from src.services.storage_service import (
     get_paper_by_oss_key,
     WORKING_DIR,
 )
-from src.api.v1.papers import PaperInfo, PaperUpdate
+from src.schema.papers import PaperInfo, PaperUpdate
+from src.schema.extraction import (
+    StartExtractionResponse,
+    StopExtractionResponse,
+)
 from src.core.logger import logger
 from src.services.storage_service import update_paper, delete_paper
 
@@ -21,21 +24,6 @@ from src.services.storage_service import update_paper, delete_paper
 # 在 main.py 中使用 include_router(papers_router, prefix="/papers")
 # 这样路径是 /api/v1/papers/{oss_key}/... 而不是 /api/v1/papers/papers/{oss_key}/...
 router = APIRouter(tags=["papers"])
-
-
-class StartExtractionResponse(BaseModel):
-    """开始提取响应"""
-
-    task_id: str
-    oss_key: str
-    message: str
-
-
-class StopExtractionResponse(BaseModel):
-    """停止提取响应"""
-
-    success: bool
-    message: str
 
 
 # 注意：路由顺序很重要！更具体的路由必须放在更通用的路由之前

@@ -2,7 +2,6 @@
 
 from fastapi import APIRouter, HTTPException, status, Query
 from typing import List, Optional
-from pydantic import BaseModel
 from datetime import datetime
 from urllib.parse import unquote
 from src.services.storage_service import (
@@ -13,74 +12,25 @@ from src.services.storage_service import (
     delete_paper,
     WORKING_DIR,
 )
+from src.schema.papers import (
+    PaperInfo,
+    PaperCreate,
+    PaperUpdate,
+    StatusStats,
+    PaperListResponse,
+    PaperStatus,
+)
 from pathlib import Path
 
 router = APIRouter(prefix="/papers", tags=["papers"])
 
-# 论文状态类型
-PaperStatus = str  # 'uploading' | 'uploaded' | 'parsing' | 'downloading' | 'extracted' | 'analyzing' | 'done' | 'error'
-
-
-class PaperInfo(BaseModel):
-    """论文信息模型"""
-
-    oss_key: str
-    oss_url: str
-    filename: str
-    size: Optional[int] = None
-    task_id: Optional[str] = None
-    status: PaperStatus
-    markdown_path: Optional[str] = None  # markdown 文件路径（相对于 working_dir）
-    error: Optional[str] = None
-    uploaded_at: Optional[str] = None
-    extracted_at: Optional[str] = None
-
-
-class PaperCreate(BaseModel):
-    """创建论文请求模型"""
-
-    oss_key: str
-    oss_url: str
-    filename: str
-    size: Optional[int] = None
-
-
-class PaperUpdate(BaseModel):
-    """更新论文请求模型"""
-
-    status: Optional[PaperStatus] = None
-    task_id: Optional[str] = None
-    markdown_path: Optional[str] = None
-    error: Optional[str] = None
-    extracted_at: Optional[str] = None
-
-
-class StatusStats(BaseModel):
-    """状态统计模型"""
-
-    total: int
-    uploading: int
-    uploaded: int
-    parsing: int
-    downloading: int
-    extracted: int
-    analyzing: int
-    done: int
-    error: int
-
-
-class PaperListResponse(BaseModel):
-    """论文列表分页响应模型"""
-
-    items: List[PaperInfo]
-    total: int
-    offset: int
-    limit: int
-
 
 @router.get("", response_model=PaperListResponse)
 async def get_papers(
-    status: Optional[PaperStatus] = Query(None, description="按状态筛选"),
+    status: Optional[str] = Query(
+        None,
+        description="按状态筛选，支持多个状态用逗号分隔，如：extracted,analyzing,done",
+    ),
     offset: Optional[int] = Query(0, ge=0, description="偏移量，从0开始"),
     limit: Optional[int] = Query(10, ge=1, le=100, description="每页数量，最大100"),
 ):
@@ -89,9 +39,10 @@ async def get_papers(
 
     GET /api/v1/papers
     GET /api/v1/papers?status=uploaded&offset=0&limit=10
+    GET /api/v1/papers?status=extracted,analyzing,done&offset=0&limit=10
 
     Args:
-        status: 可选的状态筛选
+        status: 可选的状态筛选，支持多个状态用逗号分隔
         offset: 偏移量，从0开始
         limit: 每页数量，默认10，最大100
 
@@ -100,9 +51,11 @@ async def get_papers(
     """
     papers = load_papers()
 
-    # 按状态筛选
+    # 按状态筛选（支持多状态）
     if status:
-        papers = [p for p in papers if p.get("status") == status]
+        # 支持逗号分隔的多个状态
+        status_list = [s.strip() for s in status.split(",")]
+        papers = [p for p in papers if p.get("status") in status_list]
 
     # 按上传时间倒序排序
     papers.sort(

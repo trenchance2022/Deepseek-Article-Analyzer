@@ -1,4 +1,4 @@
-/** 论文提取操作 API */
+/** 论文提取和分析操作 API */
 
 import apiClient from './client';
 
@@ -11,6 +11,16 @@ export interface StartExtractionResponse {
 export interface StopExtractionResponse {
   success: boolean;
   message: string;
+}
+
+export interface StartAnalysisResponse {
+  oss_key: string;
+  message: string;
+}
+
+export interface AnalysisResultsResponse {
+  oss_key: string;
+  results: { [key: string]: string };
 }
 
 /**
@@ -31,6 +41,28 @@ export const startExtraction = async (ossKey: string): Promise<StartExtractionRe
 export const stopExtraction = async (ossKey: string): Promise<StopExtractionResponse> => {
   const response = await apiClient.delete<StopExtractionResponse>(
     `/v1/papers/${encodeURIComponent(ossKey)}/extraction`
+  );
+  return response.data;
+};
+
+/**
+ * 开始论文分析
+ * POST /api/v1/papers/{oss_key}/analysis
+ */
+export const startAnalysis = async (ossKey: string): Promise<StartAnalysisResponse> => {
+  const response = await apiClient.post<StartAnalysisResponse>(
+    `/v1/papers/${encodeURIComponent(ossKey)}/analysis`
+  );
+  return response.data;
+};
+
+/**
+ * 获取论文分析结果
+ * GET /api/v1/papers/{oss_key}/analysis
+ */
+export const getAnalysisResults = async (ossKey: string): Promise<AnalysisResultsResponse> => {
+  const response = await apiClient.get<AnalysisResultsResponse>(
+    `/v1/papers/${encodeURIComponent(ossKey)}/analysis`
   );
   return response.data;
 };

@@ -15,6 +15,8 @@ export interface PaperInfo {
   error?: string;
   uploaded_at?: string;
   extracted_at?: string;
+  analyzed_at?: string;
+  analysis_results_path?: string;  // 分析结果文件路径
 }
 
 export interface MarkdownContent {
@@ -42,7 +44,7 @@ export interface PaperListResponse {
 }
 
 export interface GetAllPapersOptions {
-  status?: PaperStatus;
+  status?: PaperStatus | string;  // 支持单个状态或多个状态（逗号分隔）
   offset?: number;
   limit?: number;
 }
