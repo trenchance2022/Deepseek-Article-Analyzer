@@ -110,6 +110,7 @@ async def analyze_paper(oss_key: str) -> Dict[str, str]:
                     ],
                     stream=False,
                     extra_body={"thinking": {"type": "enabled"}},
+                    max_tokens=65536,  # 64K tokens
                 )
 
             # 在线程池中执行同步调用，不阻塞事件循环
