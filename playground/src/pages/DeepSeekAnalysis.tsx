@@ -15,6 +15,7 @@ const DeepSeekAnalysis = () => {
   const [initialLoading, setInitialLoading] = useState(true); // 初始加载状态
   const [error, setError] = useState<string | null>(null);
   const [processingOssKeys, setProcessingOssKeys] = useState<Set<string>>(new Set());
+  const [hasExtractedPapers, setHasExtractedPapers] = useState(false); // 是否有待分析的论文
 
   // 加载论文列表（只加载已提取、分析中、已完成的论文）
   // silent: 是否静默加载（不显示加载状态，用于后台轮询）
@@ -35,6 +36,25 @@ const DeepSeekAnalysis = () => {
       
       setPapers(response.items);
       setTotal(response.total);
+      
+      // 检查当前页是否有 extracted 状态的论文
+      const hasExtracted = response.items.some(p => p.status === 'extracted');
+      setHasExtractedPapers(hasExtracted);
+      
+      // 如果当前页没有，检查所有页（通过 API 查询 extracted 状态）
+      if (!hasExtracted && !silent) {
+        try {
+          const extractedResponse = await getAllPapers({
+            status: 'extracted',
+            offset: 0,
+            limit: 1,
+          });
+          setHasExtractedPapers(extractedResponse.total > 0);
+        } catch (err) {
+          // 如果查询失败，使用当前页的结果
+          setHasExtractedPapers(false);
+        }
+      }
     } catch (err) {
       const errorMessage = err instanceof globalThis.Error ? err.message : String(err ?? '加载论文列表失败');
       setError(errorMessage);
@@ -207,7 +227,7 @@ const DeepSeekAnalysis = () => {
           </div>
           <button
             onClick={handleStartAllAnalysis}
-            disabled={processingOssKeys.size > 0}
+            disabled={!hasExtractedPapers || processingOssKeys.size > 0}
             className="px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             开始分析
