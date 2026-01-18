@@ -3,6 +3,7 @@
 ## 后端
 
 ```bash
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 cd apps
 uv sync --all-packages
 $env:PYTHONPATH = "."
@@ -14,6 +15,8 @@ uv run app.py
 ## 前端
 
 ```bash
+winget install OpenJS.NodeJS
+npm install -g pnpm
 cd playground
 pnpm install
 pnpm dev
