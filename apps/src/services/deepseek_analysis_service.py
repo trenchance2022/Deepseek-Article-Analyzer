@@ -11,8 +11,8 @@ import os
 
 # 预定义的问题列表
 ANALYSIS_QUESTIONS = {
-    "abstract": "请提取abstract部分并翻译为中文",
-    "introduction": "请提取introduction部分并翻译为中文",
+    # "abstract": "请提取abstract部分并翻译为中文",
+    # "introduction": "请提取introduction部分并翻译为中文",
     # "conclusion": "请提取conclusion部分并翻译成中文",
     # "problem_modeling": "这篇论文的问题建模是什么，主要解决了什么问题",
     # "algorithm": "这篇论文的算法思路是什么样的，请你帮我解释一下",
