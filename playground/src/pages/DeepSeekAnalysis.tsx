@@ -246,17 +246,14 @@ const DeepSeekAnalysis = () => {
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-16">
                     ID
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider min-w-[280px]">
                     名称
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-24">
                     状态
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    创建时间
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     操作
@@ -266,13 +263,13 @@ const DeepSeekAnalysis = () => {
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {initialLoading ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center">
+                    <td colSpan={4} className="px-6 py-12 text-center">
                       <Loading />
                     </td>
                   </tr>
                 ) : papers.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                    <td colSpan={4} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                       暂无数据
                     </td>
                   </tr>
@@ -288,8 +285,8 @@ const DeepSeekAnalysis = () => {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           {(currentPage - 1) * pageSize + index + 1}
                         </td>
-                        <td className="px-6 py-4">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white truncate max-w-xs">
+                        <td className="px-6 py-4 min-w-[280px] align-top">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white break-words">
                             {paper.filename}
                           </div>
                         </td>
@@ -297,11 +294,6 @@ const DeepSeekAnalysis = () => {
                           <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusStyle(paper.status)}`}>
                             {getStatusText(paper.status)}
                           </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                          {paper.uploaded_at
-                            ? new Date(paper.uploaded_at).toLocaleString('zh-CN')
-                            : '未知时间'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <div className="flex items-center justify-end space-x-2">
