@@ -1,6 +1,6 @@
 /** 论文管理页面 */
 import { useState, useEffect, useCallback } from 'react';
-import { getAllPapers, deletePaper, type PaperInfo, type PaperStatus } from '../api/papersManagement';
+import { getAllPapers, deletePaper, openPaperDirectory, type PaperInfo, type PaperStatus } from '../api/papersManagement';
 import { startExtraction, stopExtraction, startAnalysis } from '../api/extraction';
 import { getPaperMarkdown } from '../api/papersManagement';
 import { useNavigate } from 'react-router-dom';
@@ -110,6 +110,16 @@ const PaperManagement = () => {
   const handleViewAnalysis = useCallback((ossKey: string) => {
     navigate(`/analysis/${encodeURIComponent(ossKey)}`);
   }, [navigate]);
+
+  // 打开论文所在目录
+  const handleOpenDirectory = useCallback(async (ossKey: string) => {
+    try {
+      await openPaperDirectory(ossKey);
+    } catch (err) {
+      const errorMessage = err instanceof globalThis.Error ? err.message : String(err ?? '打开目录失败');
+      setError(errorMessage);
+    }
+  }, []);
 
   // 删除论文
   const handleDelete = useCallback(async (ossKey: string) => {
@@ -328,6 +338,14 @@ const PaperManagement = () => {
                                 className="px-3 py-1 bg-purple-500 text-white rounded hover:bg-purple-600 transition-colors text-xs"
                               >
                                 查看提取结果
+                              </button>
+                            )}
+                            {paper.task_id && (
+                              <button
+                                onClick={() => handleOpenDirectory(paper.oss_key)}
+                                className="px-3 py-1 bg-amber-500 text-white rounded hover:bg-amber-600 transition-colors text-xs"
+                              >
+                                打开目录
                               </button>
                             )}
                             {paper.status === 'done' && (paper.analysis_results_path || (paper as any).analysis_results) && (

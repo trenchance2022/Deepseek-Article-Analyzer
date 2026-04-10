@@ -1,5 +1,7 @@
 """论文提取操作API（作为论文资源的子资源）"""
 
+import subprocess
+import sys
 from fastapi import APIRouter, HTTPException, status, BackgroundTasks
 from urllib.parse import unquote
 from pathlib import Path
@@ -186,6 +188,63 @@ async def get_paper_markdown(oss_key: str):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"读取文件失败: {str(e)}",
         )
+
+
+@router.post("/{oss_key:path}/open-directory")
+async def open_paper_directory(oss_key: str):
+    """
+    在系统文件管理器中打开论文所在目录
+
+    POST /api/v1/papers/{oss_key}/open-directory
+    """
+    oss_key = unquote(oss_key)
+    oss_key_normalized = oss_key.replace("\\", "/")
+
+    paper = get_paper_by_oss_key(oss_key_normalized)
+    if not paper:
+        paper = get_paper_by_oss_key(oss_key)
+    if not paper:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="论文不存在")
+
+    target_dir = None
+
+    markdown_path = paper.get("markdown_path")
+    if markdown_path:
+        md_path = Path(markdown_path.replace("\\", "/"))
+        if md_path.is_absolute():
+            target_dir = md_path.parent
+        else:
+            target_dir = (WORKING_DIR / md_path).parent
+
+    if not target_dir or not target_dir.exists():
+        task_id = paper.get("task_id")
+        if task_id:
+            target_dir = WORKING_DIR / task_id
+
+    if not target_dir or not target_dir.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="论文本地目录不存在，可能尚未提取",
+        )
+
+    target_dir = target_dir.resolve()
+    logger.info(f"打开论文目录: {oss_key}, 路径: {target_dir}")
+
+    try:
+        if sys.platform == "win32":
+            subprocess.Popen(["explorer", str(target_dir)])
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", str(target_dir)])
+        else:
+            subprocess.Popen(["xdg-open", str(target_dir)])
+    except Exception as e:
+        logger.error(f"打开目录失败: {target_dir}, 错误: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"打开目录失败: {str(e)}",
+        )
+
+    return {"success": True, "directory": str(target_dir)}
 
 
 # 通用路由放在最后（更具体的路由已经在上面定义）

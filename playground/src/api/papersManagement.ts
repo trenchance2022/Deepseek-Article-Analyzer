@@ -106,6 +106,17 @@ export const getPaperMarkdown = async (ossKey: string): Promise<MarkdownContent>
 };
 
 /**
+ * 打开论文所在目录
+ * POST /api/v1/papers/{oss_key}/open-directory
+ */
+export const openPaperDirectory = async (ossKey: string): Promise<{ success: boolean; directory: string }> => {
+  const response = await apiClient.post<{ success: boolean; directory: string }>(
+    `/v1/papers/${encodeURIComponent(ossKey)}/open-directory`
+  );
+  return response.data;
+};
+
+/**
  * 删除论文记录
  * DELETE /api/v1/papers/{oss_key}
  */
