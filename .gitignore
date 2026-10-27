@@ -72,3 +72,6 @@ results/
 
 # 工作目录
 working_dir/
+
+# 本地中间结果
+_agent_tmp/

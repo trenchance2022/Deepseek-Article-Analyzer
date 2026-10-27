@@ -140,3 +140,32 @@ export const deletePapersBatch = async (
   });
   return response.data;
 };
+
+/**
+ * 批量导出论文为 zip
+ * POST /api/v1/papers/batch/export
+ */
+export const exportPapersBatch = async (ossKeys: string[]): Promise<void> => {
+  const response = await apiClient.post('/v1/papers/batch/export', { oss_keys: ossKeys }, {
+    responseType: 'blob',
+  });
+
+  let filename = 'export.zip';
+  const disposition = response.headers['content-disposition'] as string | undefined;
+  if (disposition) {
+    const match = disposition.match(/filename="?([^";]+)"?/i);
+    if (match?.[1]) {
+      filename = match[1];
+    }
+  }
+
+  const blob = new Blob([response.data], { type: 'application/zip' });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(url);
+};

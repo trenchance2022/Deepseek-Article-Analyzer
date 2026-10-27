@@ -1,6 +1,7 @@
 """论文资源管理API接口（RESTful）"""
 
 from fastapi import APIRouter, HTTPException, status, Query
+from fastapi.responses import Response
 from typing import List, Optional
 from datetime import datetime
 from urllib.parse import unquote
@@ -13,6 +14,7 @@ from src.services.storage_service import (
     delete_papers_batch,
     WORKING_DIR,
 )
+from src.services.paper_export_service import build_papers_export_zip
 from src.schema.papers import (
     PaperInfo,
     PaperCreate,
@@ -215,4 +217,30 @@ async def delete_papers_batch_api(body: PaperBatchDelete):
         success=True,
         deleted_count=deleted_count,
         message=f"已删除 {deleted_count} 篇论文",
+    )
+
+
+@router.post("/batch/export")
+async def export_papers_batch_api(body: PaperBatchDelete):
+    """
+    批量导出论文为 zip
+
+    POST /api/v1/papers/batch/export
+
+    总包内为多个文件夹，文件夹名为 filename（去掉 .pdf）。
+    每个文件夹包含可用的 images/、full.md、以及根据 full_translation 生成的 ch-{name}.md。
+    """
+    if not body.oss_keys:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="oss_keys 不能为空"
+        )
+
+    zip_bytes, zip_filename = build_papers_export_zip(body.oss_keys)
+    return Response(
+        content=zip_bytes,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{zip_filename}"',
+            "Access-Control-Expose-Headers": "Content-Disposition",
+        },
     )

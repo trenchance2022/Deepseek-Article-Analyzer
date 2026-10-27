@@ -1,6 +1,6 @@
 /** 论文管理页面 */
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { getAllPapers, deletePaper, deletePapersBatch, openPaperDirectory, type PaperInfo, type PaperStatus } from '../api/papersManagement';
+import { getAllPapers, deletePaper, deletePapersBatch, exportPapersBatch, openPaperDirectory, type PaperInfo, type PaperStatus } from '../api/papersManagement';
 import { startExtraction, stopExtraction, startAnalysis } from '../api/extraction';
 import { getPaperMarkdown } from '../api/papersManagement';
 import { useNavigate } from 'react-router-dom';
@@ -21,6 +21,7 @@ const PaperManagement = () => {
   const [processingOssKeys, setProcessingOssKeys] = useState<Set<string>>(new Set());
   const [selectedOssKeys, setSelectedOssKeys] = useState<Set<string>>(new Set());
   const [batchDeleting, setBatchDeleting] = useState(false);
+  const [batchExporting, setBatchExporting] = useState(false);
 
   // 加载论文列表
   const loadPapers = useCallback(async () => {
@@ -195,6 +196,24 @@ const PaperManagement = () => {
     }
   }, [selectedOssKeys, loadPapers]);
 
+  // 批量导出选中的论文
+  const handleBatchExport = useCallback(async () => {
+    const ossKeys = Array.from(selectedOssKeys);
+    if (ossKeys.length === 0) {
+      return;
+    }
+    setBatchExporting(true);
+    setError(null);
+    try {
+      await exportPapersBatch(ossKeys);
+    } catch (err) {
+      const errorMessage = err instanceof globalThis.Error ? err.message : String(err ?? '批量导出失败');
+      setError(errorMessage);
+    } finally {
+      setBatchExporting(false);
+    }
+  }, [selectedOssKeys]);
+
   // 查看 Markdown
   const handleViewMarkdown = useCallback(async (paper: PaperInfo) => {
     if (paper.markdown_path) {
@@ -308,8 +327,15 @@ const PaperManagement = () => {
                   已选中 {selectedCount} 篇
                 </span>
                 <button
+                  onClick={handleBatchExport}
+                  disabled={batchExporting || batchDeleting}
+                  className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {batchExporting ? '导出中...' : '批量导出'}
+                </button>
+                <button
                   onClick={handleBatchDelete}
-                  disabled={batchDeleting}
+                  disabled={batchDeleting || batchExporting}
                   className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {batchDeleting ? '删除中...' : '批量删除'}
