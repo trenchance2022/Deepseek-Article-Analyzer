@@ -10,6 +10,7 @@ from src.services.storage_service import (
     get_paper_by_oss_key,
     update_paper,
     delete_paper,
+    delete_papers_batch,
     WORKING_DIR,
 )
 from src.schema.papers import (
@@ -19,6 +20,8 @@ from src.schema.papers import (
     StatusStats,
     PaperListResponse,
     PaperStatus,
+    PaperBatchDelete,
+    PaperBatchDeleteResponse,
 )
 from pathlib import Path
 
@@ -187,3 +190,29 @@ async def create_papers_batch(papers_create: List[PaperCreate]):
 
     save_papers(papers)
     return created_papers
+
+
+@router.delete("/batch", response_model=PaperBatchDeleteResponse)
+async def delete_papers_batch_api(body: PaperBatchDelete):
+    """
+    批量删除论文记录
+
+    DELETE /api/v1/papers/batch
+
+    Args:
+        body: 包含 oss_keys 列表的请求体
+
+    Returns:
+        PaperBatchDeleteResponse: 删除结果
+    """
+    if not body.oss_keys:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="oss_keys 不能为空"
+        )
+
+    deleted_count = delete_papers_batch(body.oss_keys)
+    return PaperBatchDeleteResponse(
+        success=True,
+        deleted_count=deleted_count,
+        message=f"已删除 {deleted_count} 篇论文",
+    )

@@ -1,6 +1,6 @@
 /** 论文管理页面 */
-import { useState, useEffect, useCallback } from 'react';
-import { getAllPapers, deletePaper, openPaperDirectory, type PaperInfo, type PaperStatus } from '../api/papersManagement';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { getAllPapers, deletePaper, deletePapersBatch, openPaperDirectory, type PaperInfo, type PaperStatus } from '../api/papersManagement';
 import { startExtraction, stopExtraction, startAnalysis } from '../api/extraction';
 import { getPaperMarkdown } from '../api/papersManagement';
 import { useNavigate } from 'react-router-dom';
@@ -19,6 +19,8 @@ const PaperManagement = () => {
   const [selectedMarkdown, setSelectedMarkdown] = useState<string | null>(null);
   const [selectedPaperName, setSelectedPaperName] = useState<string | null>(null);
   const [processingOssKeys, setProcessingOssKeys] = useState<Set<string>>(new Set());
+  const [selectedOssKeys, setSelectedOssKeys] = useState<Set<string>>(new Set());
+  const [batchDeleting, setBatchDeleting] = useState(false);
 
   // 加载论文列表
   const loadPapers = useCallback(async () => {
@@ -33,6 +35,7 @@ const PaperManagement = () => {
       });
       setPapers(response.items);
       setTotal(response.total);
+      setSelectedOssKeys(new Set());
     } catch (err) {
       const errorMessage = err instanceof globalThis.Error ? err.message : String(err ?? '加载论文列表失败');
       setError(errorMessage);
@@ -45,6 +48,13 @@ const PaperManagement = () => {
     loadPapers();
   }, [loadPapers]);
 
+  const pageOssKeys = useMemo(() => papers.map((paper) => paper.oss_key), [papers]);
+  const selectedCount = selectedOssKeys.size;
+  const isAllCurrentPageSelected =
+    pageOssKeys.length > 0 && pageOssKeys.every((ossKey) => selectedOssKeys.has(ossKey));
+  const isSomeCurrentPageSelected =
+    pageOssKeys.some((ossKey) => selectedOssKeys.has(ossKey)) && !isAllCurrentPageSelected;
+
   // 处理分页
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -55,6 +65,34 @@ const PaperManagement = () => {
     setStatusFilter(status);
     setCurrentPage(1); // 重置到第一页
   };
+
+  // 切换单篇论文选中状态
+  const handleToggleSelect = useCallback((ossKey: string) => {
+    setSelectedOssKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(ossKey)) {
+        next.delete(ossKey);
+      } else {
+        next.add(ossKey);
+      }
+      return next;
+    });
+  }, []);
+
+  // 全选 / 取消全选当前页
+  const handleToggleSelectAllCurrentPage = useCallback(() => {
+    setSelectedOssKeys((prev) => {
+      const allSelected = pageOssKeys.length > 0 && pageOssKeys.every((ossKey) => prev.has(ossKey));
+      if (allSelected) {
+        const next = new Set(prev);
+        pageOssKeys.forEach((ossKey) => next.delete(ossKey));
+        return next;
+      }
+      const next = new Set(prev);
+      pageOssKeys.forEach((ossKey) => next.add(ossKey));
+      return next;
+    });
+  }, [pageOssKeys]);
 
   // 开始提取
   const handleStartExtraction = useCallback(async (ossKey: string) => {
@@ -135,6 +173,28 @@ const PaperManagement = () => {
     }
   }, [loadPapers]);
 
+  // 批量删除选中的论文
+  const handleBatchDelete = useCallback(async () => {
+    const ossKeys = Array.from(selectedOssKeys);
+    if (ossKeys.length === 0) {
+      return;
+    }
+    if (!confirm(`确定要删除选中的 ${ossKeys.length} 篇论文吗？`)) {
+      return;
+    }
+    setBatchDeleting(true);
+    setError(null);
+    try {
+      await deletePapersBatch(ossKeys);
+      await loadPapers();
+    } catch (err) {
+      const errorMessage = err instanceof globalThis.Error ? err.message : String(err ?? '批量删除失败');
+      setError(errorMessage);
+    } finally {
+      setBatchDeleting(false);
+    }
+  }, [selectedOssKeys, loadPapers]);
+
   // 查看 Markdown
   const handleViewMarkdown = useCallback(async (paper: PaperInfo) => {
     if (paper.markdown_path) {
@@ -211,34 +271,50 @@ const PaperManagement = () => {
           </div>
         )}
 
-        {/* 状态筛选 */}
+        {/* 状态筛选与批量操作 */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
-          <div className="flex items-center gap-4">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              状态筛选
-            </label>
-            <select
-              value={statusFilter || ''}
-              onChange={(e) => handleStatusFilterChange(e.target.value as PaperStatus || undefined)}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-            >
-              <option value="">全部</option>
-              <option value="uploading">上传中</option>
-              <option value="uploaded">已上传</option>
-              <option value="parsing">解析中</option>
-              <option value="downloading">下载中</option>
-              <option value="extracted">已提取</option>
-              <option value="analyzing">分析中</option>
-              <option value="done">已完成</option>
-              <option value="error">失败</option>
-            </select>
-            {statusFilter && (
-              <button
-                onClick={() => handleStatusFilterChange(undefined)}
-                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                状态筛选
+              </label>
+              <select
+                value={statusFilter || ''}
+                onChange={(e) => handleStatusFilterChange(e.target.value as PaperStatus || undefined)}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
               >
-                清除筛选
-              </button>
+                <option value="">全部</option>
+                <option value="uploading">上传中</option>
+                <option value="uploaded">已上传</option>
+                <option value="parsing">解析中</option>
+                <option value="downloading">下载中</option>
+                <option value="extracted">已提取</option>
+                <option value="analyzing">分析中</option>
+                <option value="done">已完成</option>
+                <option value="error">失败</option>
+              </select>
+              {statusFilter && (
+                <button
+                  onClick={() => handleStatusFilterChange(undefined)}
+                  className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                >
+                  清除筛选
+                </button>
+              )}
+            </div>
+            {selectedCount > 0 && (
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-gray-600 dark:text-gray-400">
+                  已选中 {selectedCount} 篇
+                </span>
+                <button
+                  onClick={handleBatchDelete}
+                  disabled={batchDeleting}
+                  className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {batchDeleting ? '删除中...' : '批量删除'}
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -249,6 +325,21 @@ const PaperManagement = () => {
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-12">
+                    <input
+                      type="checkbox"
+                      checked={isAllCurrentPageSelected}
+                      ref={(el) => {
+                        if (el) {
+                          el.indeterminate = isSomeCurrentPageSelected;
+                        }
+                      }}
+                      onChange={handleToggleSelectAllCurrentPage}
+                      disabled={papers.length === 0 || loading}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
+                      title="全选当前页"
+                    />
+                  </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     ID
                   </th>
@@ -269,13 +360,13 @@ const PaperManagement = () => {
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {loading ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center">
+                    <td colSpan={6} className="px-6 py-12 text-center">
                       <Loading />
                     </td>
                   </tr>
                 ) : papers.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                    <td colSpan={6} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                       暂无数据
                     </td>
                   </tr>
@@ -285,9 +376,18 @@ const PaperManagement = () => {
                     const canExtractNow = canExtract(paper.status) && !isProcessing;
                     const canAnalyzeNow = canAnalyze(paper.status) && !isProcessing;
                     const isExtracting = paper.status === 'parsing' || paper.status === 'downloading';
+                    const isSelected = selectedOssKeys.has(paper.oss_key);
 
                     return (
                       <tr key={paper.oss_key} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleSelect(paper.oss_key)}
+                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           {(currentPage - 1) * pageSize + index + 1}
                         </td>

@@ -230,3 +230,45 @@ def delete_paper(oss_key: str) -> bool:
         return False
     finally:
         _release_lock(lock_file)
+
+
+def delete_papers_batch(oss_keys: List[str]) -> int:
+    """
+    批量删除论文信息（线程安全，支持路径标准化）
+
+    Args:
+        oss_keys: OSS 对象键列表
+
+    Returns:
+        int: 实际删除的数量
+    """
+    if not oss_keys:
+        return 0
+
+    lock_file = _acquire_lock()
+    try:
+        papers = load_papers()
+        original_count = len(papers)
+
+        # 标准化待删除的 oss_key 集合
+        keys_to_delete = set()
+        for oss_key in oss_keys:
+            keys_to_delete.add(oss_key)
+            keys_to_delete.add(oss_key.replace("\\", "/"))
+
+        filtered_papers = []
+        for paper in papers:
+            paper_oss_key = paper.get("oss_key", "")
+            paper_oss_key_normalized = paper_oss_key.replace("\\", "/")
+            if paper_oss_key in keys_to_delete or paper_oss_key_normalized in keys_to_delete:
+                continue
+            filtered_papers.append(paper)
+
+        deleted_count = original_count - len(filtered_papers)
+        if deleted_count > 0:
+            with open(STORAGE_FILE, "w", encoding="utf-8") as f:
+                json.dump(filtered_papers, f, ensure_ascii=False, indent=2)
+
+        return deleted_count
+    finally:
+        _release_lock(lock_file)

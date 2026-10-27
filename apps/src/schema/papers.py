@@ -68,3 +68,17 @@ class PaperListResponse(BaseModel):
     total: int
     offset: int
     limit: int
+
+
+class PaperBatchDelete(BaseModel):
+    """批量删除论文请求模型"""
+
+    oss_keys: List[str]
+
+
+class PaperBatchDeleteResponse(BaseModel):
+    """批量删除论文响应模型"""
+
+    success: bool
+    deleted_count: int
+    message: str

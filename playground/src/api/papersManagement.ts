@@ -123,3 +123,20 @@ export const openPaperDirectory = async (ossKey: string): Promise<{ success: boo
 export const deletePaper = async (ossKey: string): Promise<void> => {
   await apiClient.delete(`/v1/papers/${encodeURIComponent(ossKey)}`);
 };
+
+/**
+ * 批量删除论文记录
+ * DELETE /api/v1/papers/batch
+ */
+export const deletePapersBatch = async (
+  ossKeys: string[]
+): Promise<{ success: boolean; deleted_count: number; message: string }> => {
+  const response = await apiClient.delete<{
+    success: boolean;
+    deleted_count: number;
+    message: string;
+  }>('/v1/papers/batch', {
+    data: { oss_keys: ossKeys },
+  });
+  return response.data;
+};
